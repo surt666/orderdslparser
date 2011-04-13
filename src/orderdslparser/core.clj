@@ -7,11 +7,13 @@
 
 (def end (lit ";"))
 
+(def split (lit ":"))
+
 (def kundenummer (term #(re-find #"^[0-9]{9}$" %)))
 
-(def customer-id (conc (lit-conc-seq ["kunde" "nummer" ":"]) kundenummer end))
+(def customer-id (conc (lit-conc-seq ["kunde" "nummer" split]) kundenummer end))
 
-(def payer-id (conc (lit-conc-seq ["betaler" "nummer" ":"]) kundenummer end))
+(def payer-id (conc (lit-conc-seq ["betaler" "nummer" split]) kundenummer end))
 
 (def order (conc customer-id (opt payer-id)))
 
