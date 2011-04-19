@@ -1,5 +1,7 @@
 (ns orderdslparser.core
-  (:use name.choi.joshua.fnparse))
+  (:use name.choi.joshua.fnparse)
+  (:require [clojure.walk :as walk :only (postwalk prewalk)]
+            [clojure.contrib.seq-utils :as sequ :only (positions)]))
 
 (def hex (term #(re-find #"[0-9a-f]" %)))
 
@@ -15,7 +17,7 @@
 
 (def decimal (term #(re-find #"^[0-9]+,[0-9]{2}$" %)))
 
-(def uuid (conc (lit "uuid") split (term #(re-find #"^[0-9a-f]{8}$" %)) (lit "-") (term #(re-find #"^[0-9a-f]{4}$" %)) (lit "-") (term #(re-find #"^[0-9a-f]{4}$" %)) (lit "-") (term #(re-find #"^[0-9a-f]{4}$" %)) (lit "-") (term #(re-find #"^[0-9a-f]{12}$" %)) end))
+(def uuid (conc (lit "uuid") split (term #(re-find #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" %)) end))
 
 (def saleschannel (conc (lit "salgskanal") split ident end))
 
@@ -25,7 +27,7 @@
 
 (def clientfunction (conc (lit-conc-seq ["klient" "funktion"]) split ident end))
 
-(def version (conc (lit "version") split number (lit ".") number end))
+(def version (conc (lit "version") split (term #(re-find #"\d\.\d+" %)) end))
 
 (def custnumber (term #(re-find #"^[0-9]{9}$" %)))
 
@@ -63,11 +65,9 @@
 
 (def custinst (alt custorinst custandinst))
 
-(def emailaddress (conc ident (lit "@") ident (lit ".") ident))
+(def email (conc (lit "email") split (term #(re-find #".+@.+\..+" %)) end))
 
-(def email (conc (lit "email") split emailaddress end))
-
-(def mobil (conc (lit "mobil") split (opt (lit "+")) number end))
+(def mobil (conc (lit "mobil") split (term #(re-find #"\d{8}|\+\d{10}" %)) end))
 
 (def orderconfirm (conc (lit-conc-seq ["ordre" "bekraeftelse" "{"]) email mobil (lit "}")))
 
@@ -91,7 +91,7 @@
 
 (def ignorebinding (lit-conc-seq ["og" "ignorer" "binding"]))
 
-(def oaa (conc (lit "opret") (opt business-area) (lit "abonnement") prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) (opt anddibs) (opt withdelivery) end))
+(def oaa (conc (lit-conc-seq ["opret" "abonnement"]) prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) (opt anddibs) (opt withdelivery) end))
 
 (def oa (conc (lit "opret") business-area (lit "abonnement") prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) (opt anddibs) withagreement (opt withdelivery) end))
 
@@ -105,23 +105,63 @@
 
 (def oy (conc (lit "opret") business-area (lit "ydelse") prodnumber (opt withagreement) end))
 
-(def oaf (conc (lit "opret") business-area (lit-conc-seq ["aftale" "{"]) (rep+ (alt oaa oya)) (lit "}")))
+(def oaf (conc (lit "opret") business-area (lit "aftale") (lit "{") (rep+ (alt oaa oya)) (lit "}")))
 
 (def orderline (alt oaf oaa oy ska saa sa))
 
-(def orderlines (conc (lit-conc-seq ["ordre" "linier" "{"]) (rep* orderline) (lit "}")))
+(def orderlines (conc (lit-conc-seq ["ordre" "linier" "{"]) (rep+ orderline) (lit "}")))
 
 (def order (conc uuid version custinst (opt payer-id) saleschannel clientsystem clientuser clientfunction (opt dealer) (opt letters) (opt orderconfirm) orderlines))
 
 (defn to-lower-case [token-string]
-  (.toLowerCase token-string))
-
-(def stop-words #{":" ";"})            
+  (.toLowerCase token-string))     
 
 (defn tokenizer [string]
-  (re-seq #"\w+|\S|\d" string))
+  (re-seq #"[a-zA-Z_0-9\-.@+]+|\S+" string))
+
+(defn pos-colon [elm]    
+  (first (sequ/positions #(= ":" %) elm)))
+
+(defn pos-curly [elm]    
+  (first (sequ/positions #(= "{" %) elm)))
+
+(defn make-key [e]  
+  (cond
+   (pos-colon e) (keyword (reduce str (flatten (take (pos-colon e) e))))
+   (pos-curly e) (keyword (reduce str (flatten (take (pos-curly e) e))))))
+
+(defn make-val [e]
+  (cond
+   (pos-colon e) (reduce str (take-last (- (count e) (pos-colon e) 2) (filter #(not (= ";" %)) e)))
+   (pos-curly e) (reduce str (take-last (- (count e) (pos-curly e) 2) (filter #(not (= ";" %)) e)))))
+
+(defn line? [e]
+  (= ";" (last e)))
+
+(defn block? [e]
+  (not (line? e)))
+
+(defn parse-vec [v]
+  (prn "V" v))
+
+(defn parse-block [elm]
+  (loop [e elm res {}]
+    (if (empty? e)
+      res
+      (recur (rest e) (if (line? (first e))
+                        (assoc res (make-key (first e)) (make-val (first e)))
+                        (when (not (= "}" (first e)))
+                          (if (vector? (first e))
+                            (parse-vec (first e))
+                            (prn "B" (first e)))))))))
+
+(defn parse-elm [elm]  
+  (cond
+   (line? elm) (assoc {} (make-key elm) (make-val elm))
+   (block? elm) (parse-block elm)))
 
 (defn parse-dsl [dsl]
-  (let [tokens (tokenizer dsl)]
-    (prn tokens)
-    (rule-match order #(println "FAILED: " %) #(println "LEFTOVER: " %2) {:remainder tokens})))
+  (let [tokens (tokenizer dsl)    
+        res (rule-match order #(println "FAILED: " %) #(println "LEFTOVER: " %2) {:remainder tokens})]    
+    ;; (map #(parse-elm %) res)
+    res))
