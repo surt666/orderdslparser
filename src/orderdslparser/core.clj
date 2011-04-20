@@ -1,5 +1,7 @@
 (ns orderdslparser.core
-  (:use name.choi.joshua.fnparse)
+  (:use name.choi.joshua.fnparse
+        matchure
+        matchure.compile)
   (:require [clojure.walk :as walk :only (postwalk prewalk)]
             [clojure.contrib.seq-utils :as sequ :only (positions)]))
 
@@ -7,55 +9,53 @@
 
 (def end (lit ";"))
 
-(def split (lit ":"))
-
 (def date (term #(re-find #"^\d{2}-\d{2}-\d{4}$" %)))
 
 (def number (term #(re-find #"^[0-9]+$" %)))
 
-(def ident (term #(re-find #"^.+$" %)))
+(def ident (term #(re-find #"^[[a-zA-Z0-9]&&[^;]]+$" %)))
 
-(def decimal (term #(re-find #"^[0-9]+,[0-9]{2}$" %)))
+(def decimal (term #(re-find #"^[0-9]+,|\.[0-9]{2}$" %)))
 
-(def uuid (conc (lit "uuid") split (term #(re-find #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" %)) end))
+(def uuid (conc (lit-conc-seq ["uuid" ":"]) (term #(re-find #"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$" %)) end))
 
-(def saleschannel (conc (lit "salgskanal") split ident end))
+(def saleschannel (conc (lit-conc-seq ["salgskanal" ":"]) ident end))
 
-(def clientsystem (conc (lit-conc-seq ["klient" "system"]) split ident end))
+(def clientsystem (conc (lit-conc-seq ["klient" "system" ":"]) ident end))
 
-(def clientuser (conc (lit-conc-seq ["klient" "bruger"]) split ident end))
+(def clientuser (conc (lit-conc-seq ["klient" "bruger" ":"]) ident end))
 
-(def clientfunction (conc (lit-conc-seq ["klient" "funktion"]) split ident end))
+(def clientfunction (conc (lit-conc-seq ["klient" "funktion" ":"]) ident end))
 
-(def version (conc (lit "version") split (term #(re-find #"\d\.\d+" %)) end))
+(def version (conc (lit-conc-seq ["version" ":"]) (term #(re-find #"\d\.\d+" %)) end))
 
 (def custnumber (term #(re-find #"^[0-9]{9}$" %)))
 
 (def prodnumber (term #(re-find #"^[0-9]{7}$" %)))
 
-(def installationnumber (conc (lit-conc-seq ["installations" "nr"]) split number end))
+(def installationnumber (conc (lit-conc-seq ["installations" "nr" ":"]) number end))
 
-(def address-id (conc (lit-conc-seq ["adresse" "id"]) split number end))
+(def address-id (conc (lit-conc-seq ["adresse" "id" ":"]) number end))
 
 (def instaddress (conc (lit-conc-seq ["installations" "adresse" "{"]) address-id installationnumber (lit "}")))
 
-(def customer-id (conc (lit-conc-seq ["kunde" "nr"]) split custnumber end))
+(def customer-id (conc (lit-conc-seq ["kunde" "nr" ":"]) custnumber end))
 
-(def payer-id (conc (lit-conc-seq ["betaler" "nr"]) split custnumber end))
+(def payer-id (conc (lit-conc-seq ["betaler" "nr" ":"]) custnumber end))
 
-(def dealerid (conc (lit-conc-seq ["forhandler" "id"]) split number end))
+(def dealerid (conc (lit-conc-seq ["forhandler" "id" ":"]) number end))
 
-(def totalprice (conc (lit-conc-seq ["total" "pris"]) split decimal end))
+(def totalprice (conc (lit-conc-seq ["total" "pris" ":"]) decimal end))
 
-(def salesagent (conc (lit-conc-seq ["salgs" "agent"]) split ident (opt (rep* ident)) end))
+(def salesagent (conc (lit-conc-seq ["salgs" "agent" ":"]) (rep+ ident) end))
 
 (def dealer (conc (lit-conc-seq ["forhandler" "{"]) dealerid salesagent totalprice (lit "}")))
 
 (def bool (alt (lit "true") (lit "false")))
 
-(def legalletter (conc (lit "juridisk") split bool end))
+(def legalletter (conc (lit-conc-seq ["juridisk" ":"]) bool end))
 
-(def payerletter (conc (lit "betaler") split bool end))
+(def payerletter (conc (lit-conc-seq ["betaler" ":"]) bool end))
 
 (def letters (conc (lit-conc-seq ["breve" "{"]) legalletter payerletter (lit "}")))
 
@@ -65,9 +65,9 @@
 
 (def custinst (alt custorinst custandinst))
 
-(def email (conc (lit "email") split (term #(re-find #".+@.+\..+" %)) end))
+(def email (conc (lit-conc-seq ["email" ":"]) (term #(re-find #".+@.+\..+" %)) end))
 
-(def mobil (conc (lit "mobil") split (term #(re-find #"\d{8}|\+\d{10}" %)) end))
+(def mobil (conc (lit-conc-seq ["mobil" ":"]) (term #(re-find #"\d{8}|\+\d{10}" %)) end))
 
 (def orderconfirm (conc (lit-conc-seq ["ordre" "bekraeftelse" "{"]) email mobil (lit "}")))
 
@@ -119,49 +119,61 @@
 (defn tokenizer [string]
   (re-seq #"[a-zA-Z_0-9\-.@+]+|\S+" string))
 
-(defn pos-colon [elm]    
-  (first (sequ/positions #(= ":" %) elm)))
+(defn handle-agreementline [line res]
+  (cond-match (vec (walk/postwalk #(if (list? %) (vec %) %) line))              
+              [["opret" "abonnement"] ?varenr ?sn ?gebyr ?rabat ?tlfnr ?dibsid ?levering ";"] (assoc res :abonnement {:varenr varenr :sn sn :gebyr gebyr :rabat rabat :tlfnr tlfnr :dibsid dibsid :levering levering})
+              [["opret" "ydelse"] ?varenr ";"] (assoc res :ydelse {:varenr varenr})
+              _ res))
 
-(defn pos-curly [elm]    
-  (first (sequ/positions #(= "{" %) elm)))
-
-(defn make-key [e]  
-  (cond
-   (pos-colon e) (keyword (reduce str (flatten (take (pos-colon e) e))))
-   (pos-curly e) (keyword (reduce str (flatten (take (pos-curly e) e))))))
-
-(defn make-val [e]
-  (cond
-   (pos-colon e) (reduce str (take-last (- (count e) (pos-colon e) 2) (filter #(not (= ";" %)) e)))
-   (pos-curly e) (reduce str (take-last (- (count e) (pos-curly e) 2) (filter #(not (= ";" %)) e)))))
-
-(defn line? [e]
-  (= ";" (last e)))
-
-(defn block? [e]
-  (not (line? e)))
-
-(defn parse-vec [v]
-  (prn "V" v))
-
-(defn parse-block [elm]
-  (loop [e elm res {}]
-    (if (empty? e)
+(defn handle-agreementlines [lines]
+   (loop [l lines res {}]
+    (if (empty? l)
       res
-      (recur (rest e) (if (line? (first e))
-                        (assoc res (make-key (first e)) (make-val (first e)))
-                        (when (not (= "}" (first e)))
-                          (if (vector? (first e))
-                            (parse-vec (first e))
-                            (prn "B" (first e)))))))))
+      (let [line (first l)]
+        (recur (rest l) (handle-agreementline line res))))))
 
-(defn parse-elm [elm]  
-  (cond
-   (line? elm) (assoc {} (make-key elm) (make-val elm))
-   (block? elm) (parse-block elm)))
+(defn handle-orderline [line res]  
+  (cond-match (vec (walk/postwalk #(if (list? %) (vec %) %) line))
+              ["skift" ?fo "abonnement" ?fravnr ?frasn "til" ?tilvnr ?tilsn ?gebyr ?rabat [["paa" "aftale"] ?aftnr] ?levering ";"] (assoc res :skift-abonnement {:fo fo :fravnr fravnr :frasn frasn :tilvnr tilvnr :tilsn tilsn :gebyr gebyr :rabat rabat :aftnr aftnr :levering levering})
+              ["opret" ?fo "abonnement" ?tilvnr ?tilsn ?gebyr ?rabat [["paa" "aftale"] ?aftnr] ?levering ";"] (assoc res :opret-abonnement {:fo fo :tilvnr tilvnr :tilsn tilsn :gebyr gebyr :rabat rabat :aftnr aftnr :levering levering})
+              ["opret" ?fo "ydelse" ?tilvnr [["paa" "aftale"] ?aftnr] ";"] (assoc res :opret-ydelse {:fo fo :tilvnr tilvnr :aftnr aftnr})
+              ["opsig" ?fo "abonnement" ?varenr [["pga" "aarsag"] ?aarsag] [["paa" "aftale"] ?aftnr] ?ignorer-binding ?levering ";"] (assoc res :opsig-abonnement {:fo fo :varenr varenr :aarsag aarsag :aftnr aftnr :ignorer-binding (if ignorer-binding "true" "false") :levering levering})
+              [["opsig" "aftale"] ?aftnr [["pga" "aarsag"] ?aarsag] ?ignorer-binding [["gaeldende" "fra"] ?levering] ";"] (assoc res :opsig-aftale {:aftnr aftnr :aarag aarsag :ignorer-binding (if ignorer-binding "true" "false") :levering levering})
+              ["opret" ?fo "aftale" "{" ?aftale-linier "}"] (assoc res :aftale (handle-agreementlines aftale-linier))
+              _ res))
+
+(defn handle-lines [lines]
+  (loop [l lines res {}]
+    (if (empty? l)
+      res
+      (let [line (first l)]
+        (recur (rest l) (handle-orderline line res))))))
+
+(defn handle-elm [elm res]
+  (cond-match (vec (walk/postwalk #(if (list? %) (vec %) %) elm))
+              [["uuid" ":"] ?uuid ";"] (assoc res :uuid uuid)
+              [["version" ":"] ?version ";"] (assoc res :version version)
+              [["salgskanal" ":"] ?salgskanal ";"] (assoc res :salgskanal salgskanal)
+              [["klient" "system" ":"] ?klient-system ";"] (assoc res :klient-system klient-system)
+              [["klient" "bruger" ":"] ?klient-bruger ";"] (assoc res :klient-bruger klient-bruger)
+              [["klient" "funktion" ":"] ?klient-funktion ";"] (assoc res :klient-funktion klient-funktion)
+              [["forhandler" "{"] [["forhandler" "id" ":"] ?id ";"] [["salgs" "agent" ":"] ?salgsagent ";"] [["total" "pris" ":"] ?pris ";"] "}"] (assoc res :forhandler {:id id :salgsagent (reduce #(str %1 " " %2) salgsagent) :pris pris})
+              [["breve" "{"] [["juridisk" ":"] ?juridisk ";"] [["betaler" ":"] ?betaler ";"] "}"] (assoc res :breve {:juridisk juridisk :betaler betaler})
+              [["kunde" "med" "installations" "adresse" "{"] [["kunde" "nr" ":"] ?kundenr ";"] [["adresse" "id" ":"] ?amsid ";"] [["installations" "nr" ":"] ?instnr ";"] "}"] (assoc res :kunde-med-inst-adr {:kundenr kundenr :amsid amsid :instnr instnr})
+              [["ordre" "bekraeftelse" "{"] [["email" ":"] ?email ";"] [["mobil" ":"] ?mobil ";"] "}"] (assoc res :ordre-bekraeftelse {:email email :mobil mobil})
+              [["ordre" "linier" "{"] ?lines "}"] (assoc res :ordrelinier (handle-lines lines))
+              _ res))
+
+(defn transform [dsl-list]
+  "transform dsl list to map"
+  (loop [l dsl-list res {}]
+    (if (empty? l)
+      res
+      (let [elm (first l)]        
+        (recur (rest l) (handle-elm elm res))))))
 
 (defn parse-dsl [dsl]
+  "parse dsl into list form"
   (let [tokens (tokenizer dsl)    
-        res (rule-match order #(println "FAILED: " %) #(println "LEFTOVER: " %2) {:remainder tokens})]    
-    ;; (map #(parse-elm %) res)
-    res))
+        res (rule-match order #(println "FAILED: " %) #(println "LEFTOVER: " %2) {:remainder tokens})]        
+    (transform res)))
