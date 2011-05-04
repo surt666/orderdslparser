@@ -81,6 +81,10 @@
 
 (def withphonenumber (conc (lit-conc-seq ["med" "tlf" "nr"]) number))
 
+(def phonebookoption (alt "hemmeligt-nummer" "hemmelig-adresse" "alt-hemmeligt" "vis-alt"))
+
+(def withphonebook (conc (lit-conc-seq ["med" "telefonbog"]) phonebookoption))
+
 (def withsn (conc (lit-conc-seq ["med" "sn"]) number))
 
 (def withdelivery (conc (lit-conc-seq ["gaeldende" "fra"]) date))
@@ -89,9 +93,9 @@
 
 (def ignorebinding (lit-conc-seq ["og" "ignorer" "binding"]))
 
-(def oaa (conc (lit-conc-seq ["opret" "abonnement"]) prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) (opt withdelivery) end))
+(def oaa (conc (lit-conc-seq ["opret" "abonnement"]) prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) (opt withphonebook) (opt withdelivery) end))
 
-(def oa (conc (lit "opret") business-area (lit "abonnement") prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) withagreement (opt withdelivery) end))
+(def oa (conc (lit "opret") business-area (lit "abonnement") prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withphonenumber) (opt withphonebook) withagreement (opt withdelivery) end))
 
 (def ska (conc (lit "skift") business-area (lit "abonnement") prodnumber (opt withsn) (lit "til") prodnumber (opt withsn) (opt withfee) (opt withdiscount) (opt withagreement) (opt withdelivery) end))
 
@@ -119,7 +123,7 @@
 
 (defn handle-agreementline [line res]
   (cond-match (vec (walk/postwalk #(if (list? %) (vec %) %) line))              
-              [["opret" "abonnement"] ?varenr ?sn ?gebyr ?rabat ?tlfnr ?levering ";"] (conj res {:abonnement {:varenr varenr :sn sn :gebyr gebyr :rabat rabat :tlfnr tlfnr :levering levering}})
+              [["opret" "abonnement"] ?varenr ?sn ?gebyr ?rabat ?tlfnr ?tlfbog ?levering ";"] (conj res {:abonnement {:varenr varenr :sn sn :gebyr gebyr :rabat rabat :tlfnr tlfnr :tlfbog tlfbog :levering levering}})
               [["opret" "ydelse"] ?varenr ";"] (conj res {:ydelse {:varenr varenr}})
               _ res))
 
@@ -133,7 +137,7 @@
 (defn handle-orderline [line res]  
   (cond-match (vec (walk/postwalk #(if (list? %) (vec %) %) line))
               ["skift" ?fo "abonnement" ?fravnr ?frasn "til" ?tilvnr ?tilsn ?gebyr ?rabat [["paa" "aftale"] ?aftnr] ?levering ";"] (conj res {:skift-abonnement {:fo fo :fravnr fravnr :frasn frasn :tilvnr tilvnr :tilsn tilsn :gebyr gebyr :rabat rabat :aftnr aftnr :levering levering}})
-              ["opret" ?fo "abonnement" ?tilvnr ?tilsn ?gebyr ?rabat ?tlfnr [["paa" "aftale"] ?aftnr] ?levering ";"] (conj res {:opret-abonnement {:fo fo :tilvnr tilvnr :tilsn tilsn :gebyr gebyr :rabat rabat :aftnr aftnr :levering levering :tlfnr tlfnr}})
+              ["opret" ?fo "abonnement" ?tilvnr ?tilsn ?gebyr ?rabat ?tlfnr ?tlfbog [["paa" "aftale"] ?aftnr] ?levering ";"] (conj res {:opret-abonnement {:fo fo :tilvnr tilvnr :tilsn tilsn :gebyr gebyr :rabat rabat :aftnr aftnr :levering levering :tlfnr tlfnr :tlfbog tlfbog}})
               ["opret" ?fo "ydelse" ?tilvnr [["paa" "aftale"] ?aftnr] ";"] (conj res {:opret-ydelse {:fo fo :tilvnr tilvnr :aftnr aftnr}})
               ["opsig" ?fo "abonnement" ?varenr [["pga" "aarsag"] ?aarsag] [["paa" "aftale"] ?aftnr] ?ignorer-binding ?levering ";"] (conj res {:opsig-abonnement {:fo fo :varenr varenr :aarsag aarsag :aftnr aftnr :ignorer-binding (if ignorer-binding "true" "false") :levering levering}})
               [["opsig" "aftale"] ?aftnr [["pga" "aarsag"] ?aarsag] ?ignorer-binding [["gaeldende" "fra"] ?levering] ";"] (conj res {:opsig-aftale {:aftnr aftnr :aarag aarsag :ignorer-binding (if ignorer-binding "true" "false") :levering levering}})
