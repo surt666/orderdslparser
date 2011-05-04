@@ -1,0 +1,14 @@
+uuid : 0c37fae0-a3fd-41ee-9741-b0326d15477e;
+version : 1.15;
+kunde med installations adresse {
+  kunde nr : 600002469;
+  adresse id : 3644926;
+  installations nr : 1;
+}
+salgskanal : W;
+klient system : Portal;
+klient bruger : k32480;
+klient funktion : bestil;
+ordre linier {
+  skift BB abonnement 1301002 til 1301123 med gebyr 1312004 paa aftale 277797;
+}

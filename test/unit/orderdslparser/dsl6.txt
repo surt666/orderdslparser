@@ -1,0 +1,13 @@
+uuid : 550e8400-e29b-41d4-a716-446655440000;
+version : 1.15;
+installations adresse {
+  adresse id : 6896378;
+  installations nr : 1;
+}
+salgskanal : SC;
+klient system : SF;
+klient bruger : m00522;
+klient funktion : opretOrdreDirekte;
+ordre linier {
+  skift CLEAR abonnement 1101001 til 1101002 paa aftale 90101010;
+}

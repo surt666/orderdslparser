@@ -1,0 +1,26 @@
+uuid : 550e8400-e29b-41d4-a716-446655440000;
+version : 1.15;
+kunde med installations adresse {
+  kunde nr : 123450102;
+  adresse id : 6896378;
+  installations nr : 2;
+}
+salgskanal : K;
+klient system : TRIPLE;
+klient bruger : m00522;
+klient funktion : opretOrdreDirekte;
+breve {
+  juridisk : false;
+  betaler : true;
+}
+ordre bekraeftelse {
+  email : test@testersen.test;
+  mobil : +4512345678;
+}
+ordre linier {
+  opret CLEAR aftale {
+    opret abonnement 1101001;
+    opret ydelse 1190101;
+  }  
+  skift BB abonnement 1301001 til 1302001 paa aftale 890101001;
+}

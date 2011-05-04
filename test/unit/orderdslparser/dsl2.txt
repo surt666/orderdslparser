@@ -1,0 +1,34 @@
+uuid : 550e8400-e29b-41d4-a716-446655440000;
+version : 1.16;
+kunde nr : 123450901;
+salgskanal : W;
+klient system : PORTAL;
+klient bruger : m00522;
+klient funktion : opretOrdreDirekte;
+ordre linier {
+  opret CLEAR aftale {
+    opret abonnement 1101001;
+  }
+  opret DTV aftale {
+    opret abonnement 1200102 med sn 820018001 med gebyr 1200010 med rabat 1200012 gaeldende fra 12-10-2010;
+    opret ydelse 1200010;
+    opret ydelse 1201010;
+  }
+  opret BB aftale {
+    opret abonnement 1301001 med rabat 1390100;
+  }
+  opret BB aftale {
+    opret abonnement 1301023 med gebyr 1302001;
+  }
+  opret TLF aftale {
+    opret abonnement 1401001 med tlf nr 21780987;
+  }
+  skift CLEAR abonnement 1101001 til 1101002;
+  skift DTV abonnement 1201001 til 1201002 paa aftale 91019910;
+  skift DTV abonnement 1201001 med sn 820018001 til 1201002 med sn 820018004 paa aftale 91019910;
+  opsig BB abonnement 1301001 pga aarsag 2 paa aftale 90189200;
+  opsig aftale 92001820 pga aarsag 2 og ignorer binding gaeldende fra 10-10-2010; 
+  opret BB abonnement 1301423 med rabat 1322001 paa aftale 90101010;
+  opret BB abonnement 1301223 med gebyr 1302001 paa aftale 90101010 gaeldende fra 10-10-2010;
+  opret BB abonnement 1303423 paa aftale 90101010;
+}

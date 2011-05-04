@@ -1,0 +1,23 @@
+uuid : 550e8400-e29b-41d4-a716-446655440000;
+version : 1.15;
+kunde nr : 123450934;
+salgskanal : F;
+klient system : PORTAL;
+klient bruger : m00522;
+klient funktion : opretOrdreDirekte;
+forhandler {
+  forhandler id : 345789;
+  salgs agent : Hans Bent Larsen;
+  total pris : 395.67;
+}
+ordre linier {
+  opret DTV aftale {
+    opret abonnement 1200101 gaeldende fra 01-08-2010;
+    opret abonnement 1200102 med sn 921201920 gaeldende fra 12-10-2010;
+    opret ydelse 1200010;
+  }
+  opret BB aftale {
+    opret abonnement 1301001 med sn 8289289 med gebyr 1300202 med rabat 1300201;
+    opret ydelse 1300390;
+  }
+}
